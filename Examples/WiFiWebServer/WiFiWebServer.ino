@@ -20,7 +20,17 @@
 
 #include <SPI.h>
 #include <WiFi.h>
+#include <Roomba.h>
 
+// Set up iRobot Create:
+
+// Defines the Roomba instance and the HardwareSerial it connected to
+Roomba roomba(&Serial1);
+
+int x;                   // 16 bit signed variable
+unsigned int u;          // 16 bit unsigned variable
+
+// Setup Wi-Fi:
 
 char ssid[] = "Hackerspace";      // your network SSID (name) 
 char pass[] = "MakingIsFun!";   // your network password
@@ -32,7 +42,7 @@ WiFiServer server(80);
 
 void setup() {
   //Initialize serial and wait for port to open:
-  Serial.begin(9600); 
+  Serial.begin(115200); 
   while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
   }
@@ -57,6 +67,15 @@ void setup() {
   server.begin();
   // you're connected now, so print out the status:
   printWifiStatus();
+  
+  // Setup iRobot
+  setupRoomba();
+}
+
+boolean setupRoomba() {
+  roomba.start();
+//  roomba.safeMode();
+  roomba.fullMode();
 }
 
 
