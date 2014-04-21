@@ -479,7 +479,7 @@ void loop() {
 //                  Serial.print(ampersandCharIndex);
 //                  Serial.print("\n");
 //                  
-                  Serial.println(httpRequestParameters[httpRequestParameterCount]);
+//                  Serial.println(httpRequestParameters[httpRequestParameterCount]);
                   
                   httpRequestParameterCount++; // Count the parameter and continue to next parameter (if any)
                   
@@ -487,28 +487,17 @@ void loop() {
                   
                   // If no '&' character found, then find the end of the parameter list
                   //spaceChar = strchr(httpRequestParameterString, ' '); // Find end of parameter list
-                  char* endChar = strchr(httpRequestParameterString, ' '); // Find end of parameter list
-                  int endCharIndex = 0;
-                  // spaceChar = strchr(httpRequestParameters[httpRequestParameterCount], ' ');
+                  spaceChar = strchr(httpRequestParameterString, '\0'); // Find end of parameter list
+//                  int endCharIndex = 0;
 //                  if (endChar != NULL) { // Check if a ' ' character was found
-                    endCharIndex = (int) (endChar - httpRequestUriBuffer);
-                    httpRequestUriBuffer[endCharIndex] = NULL; // Terminate the parameter key/value pair string
+                    spaceCharIndex = (int) (spaceChar - httpRequestUriBuffer);
+                    httpRequestUriBuffer[spaceCharIndex] = NULL; // Terminate the parameter key/value pair string
                     
-                    Serial.println(httpRequestParameters[httpRequestParameterCount]);
+//                    Serial.println(httpRequestParameters[httpRequestParameterCount]);
                     
                     httpRequestParameterCount++;
                     
                     haveExtractedParameters = true;
-                  
-//                    Serial.print("\t\t(' ') ampersandChar = ");
-//                    Serial.print(endChar);
-//                    Serial.print("\n");
-//                    
-//                    Serial.print("\t\t(' ') ampersandCharIndex = ");
-//                    Serial.print(ampersandCharIndex);
-//                    Serial.print("\n");
-//                    
-//                    Serial.println(httpRequestParameters[httpRequestParameterCount]);
 //                  }
                   
                   // haveExtractedParameters = true; // TODO: Consider putting this here... should it be here for any situation?
@@ -521,9 +510,11 @@ void loop() {
               Serial.print("\thttpRequestParameterCount = ");
               Serial.print(httpRequestParameterCount);
               Serial.print("\n");
-                  
+
               if (haveExtractedParameters) {
-                  Serial.println(httpRequestParameters[httpRequestParameterCount]);
+                for (int i = 0; i < httpRequestParameterCount; i++) {
+                  Serial.println(httpRequestParameters[i]);
+                }
               }
               
               // TODO: Parse key/value pairs
