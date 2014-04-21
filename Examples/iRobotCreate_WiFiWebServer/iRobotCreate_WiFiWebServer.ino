@@ -116,11 +116,14 @@ char httpRequestUriBuffer[512]; // HTTP request buffer
 int bi = 0; // HTTP request buffer index
 char* httpRequestParameters[10]; // HTTP request parameters (i.e., key/value pairs encoded in the URI like "?key1=value1&key2=value2")
 int httpRequestParameterCount = 0;
+char* httpRequestParameterDictionary[10][2]; // HTTP request parameters (i.e., key/value pairs encoded in the URI like "?key1=value1&key2=value2")
+// httpRequestParameterDictionary[paramIndex][key] // key = 0 (returns char*)
+// httpRequestParameterDictionary[paramIndex][value] // value = 1 (returns char*)
 
 void loop() {
   
   // Get sensor data (from iRobot Create)
-  hasRoombaSensorData = roomba.getSensors(6 , buf , 52);             // packetID, destination, length (bytes) 
+  hasRoombaSensorData = roomba.getSensors(6 , buf , 52);  // packetID, destination, length (bytes) 
                                                           // Note that getSensors() -returns true when [length] bytes have been read 
                                                           //                        -is blocking until [length] bytes have been read or timeout occurs
                                                           // Consult Open Interface Manual pg 17 for packet lengths
@@ -422,7 +425,6 @@ void loop() {
             
             // httpRequestParameterString = &httpRequestUriBuffer[spaceCharIndex + 1];
             httpRequestParameterString = httpRequestAddress; // Start searching for '?' at the beginning of the URI.
-//            httpRequestParameterString = &httpRequestUriBuffer[spaceCharIndex]; // NOTE: Trying not adding one to spaceCharIndex since doing so might move spaceCharIndex out of bounds (i.e., index beyond the length of the request string). IMPORTANT: This may not be neccsary. It might be okay to add one.
             questionChar = strchr(httpRequestParameterString, '?'); // Search for the '?' character
             httpRequestParameterCount = 0; // Reset parameter count
             
@@ -434,14 +436,6 @@ void loop() {
               // Find the '?' character, denoting the beginning of the parameter list
               questionCharIndex = (int) (questionChar - httpRequestUriBuffer); // Get index of '?' character in HTTP request string (of form "POST /drive?velocity=300&radius=15")
               httpRequestParameterString = &httpRequestUriBuffer[questionCharIndex + 1]; // Search for the beginning of the paramter list encoded in the HTTP request
-                  
-//                Serial.print("\tquestionCharIndex = ");
-//                Serial.print(questionCharIndex);
-//                Serial.print("\n");  
-                
-//                Serial.print("\thttpRequestParameterString = ");
-//                Serial.print(httpRequestParameterString);
-//                Serial.print("\n");
               
               char* ampersandChar = NULL;
               int ampersandCharIndex = -1; // This is used to track the indices of '&' characters during parameter parsing
@@ -449,75 +443,47 @@ void loop() {
               
               // Iterate over parameter list and extract parameters
               boolean haveExtractedParameters = false; // Flag indicating whether all parameters have been extracted
-              while (haveExtractedParameters == false) {
-//                Serial.println("Iterating...");
+              while (!haveExtractedParameters) {
               
                 // Search for the next parameter enoded in the URI (if any), by searching for the next occurrence of '&' or ' ' (denoting the end of the parameter list)
                 httpRequestParameters[httpRequestParameterCount] = &httpRequestUriBuffer[ampersandCharIndex + 1];
                 ampersandChar = strchr(httpRequestParameters[httpRequestParameterCount], '&');
-                  
-//                Serial.print("\tampersandChar = ");
-//                Serial.print(ampersandChar);
-//                Serial.print("\n");
-//                
-//                Serial.print("\tampersandCharIndex = ");
-//                Serial.print(ampersandCharIndex);
-//                Serial.print("\n");
-                
-//                spaceChar = strchr(httpRequestAddress, ' ');
-//                spaceCharIndex = (int) (spaceChar - httpRequestUriBuffer);
                 
                 if (ampersandChar != NULL) { // Check if a '&' character was found
                   ampersandCharIndex = (int) (ampersandChar - httpRequestUriBuffer);
                   httpRequestUriBuffer[ampersandCharIndex] = NULL; // Terminate the parameter key/value pair string
-                  
-//                  Serial.print("\tampersandChar = ");
-//                  Serial.print(ampersandChar);
-//                  Serial.print("\n");
-//                  
-//                  Serial.print("\tampersandCharIndex = ");
-//                  Serial.print(ampersandCharIndex);
-//                  Serial.print("\n");
-//                  
-//                  Serial.println(httpRequestParameters[httpRequestParameterCount]);
                   
                   httpRequestParameterCount++; // Count the parameter and continue to next parameter (if any)
                   
                 } else {
                   
                   // If no '&' character found, then find the end of the parameter list
-                  //spaceChar = strchr(httpRequestParameterString, ' '); // Find end of parameter list
+                  // spaceChar = strchr(httpRequestParameterString, ' '); // Find end of parameter list
                   spaceChar = strchr(httpRequestParameterString, '\0'); // Find end of parameter list
-//                  int endCharIndex = 0;
-//                  if (endChar != NULL) { // Check if a ' ' character was found
-                    spaceCharIndex = (int) (spaceChar - httpRequestUriBuffer);
-                    httpRequestUriBuffer[spaceCharIndex] = NULL; // Terminate the parameter key/value pair string
-                    
-//                    Serial.println(httpRequestParameters[httpRequestParameterCount]);
-                    
-                    httpRequestParameterCount++;
-                    
-                    haveExtractedParameters = true;
-//                  }
+                  // if (endChar != NULL) { // Check if a ' ' character was found
+                  spaceCharIndex = (int) (spaceChar - httpRequestUriBuffer);
+                  httpRequestUriBuffer[spaceCharIndex] = NULL; // Terminate the parameter key/value pair string
                   
-                  // haveExtractedParameters = true; // TODO: Consider putting this here... should it be here for any situation?
+                  httpRequestParameterCount++;
                   
-                  break; // Break out of the while loop
+                  haveExtractedParameters = true;
+                  // }
+                  
+                  // TODO: Remove the following line. I don't think it's needed since the flag will break the loop on the next iteration.
+                  // break; // Break out of the while loop
                 }
               }
               
-              // We have extracted parameter key/value pairs. Now, extract them, separating the key and value in each pair.
-              Serial.print("\thttpRequestParameterCount = ");
-              Serial.print(httpRequestParameterCount);
-              Serial.print("\n");
+              /**
+               * We have extracted parameter key/value pairs. Now, extract them, separating the key and value in each pair.
+               */
 
+              // Iterate over paramters' key/value pairs and parse each of them.
               if (haveExtractedParameters) {
                 for (int i = 0; i < httpRequestParameterCount; i++) {
                   Serial.println(httpRequestParameters[i]);
                 }
               }
-              
-              // TODO: Parse key/value pairs
               
             } else {
               // The '?' character was not found in the URI, so assume that no parameters exist.
