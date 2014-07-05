@@ -21,19 +21,22 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <Roomba.h>
+#include <SoftwareSerial.h>
+
+SoftwareSerial mySerial(2, 3); // RX, TX
 
 // Set up iRobot Create:
 
 // Defines the Roomba instance and the HardwareSerial it connected to
-Roomba roomba(&Serial1);
+Roomba roomba(&mySerial);
 
 int x;                   // 16 bit signed variable
 unsigned int u;          // 16 bit unsigned variable
 
 // Setup Wi-Fi:
 
-char ssid[] = "Hackerspace";      // your network SSID (name) 
-char pass[] = "MakingIsFun!";   // your network password
+char ssid[] = "Pixel";      // your network SSID (name) 
+char pass[] = "redgreenblue";   // your network password
 int keyIndex = 0;                 // your network key Index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;

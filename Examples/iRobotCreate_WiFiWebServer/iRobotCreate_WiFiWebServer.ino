@@ -18,20 +18,24 @@ This project was built using the Roomba library (http://www.airspayce.com/mikem/
 Some of this code is based on RCKit (http://www.airspayce.com/mikem/arduino/RCKit/).
 */
 
-#include <SPI.h>
+//#define HardwareSerial SoftwareSerial // Note, this should be included before Roomba.h so occurrences of Roomba.h are replaced (I think that will work... check!)
+//#include <SPI.h>
 #include <WiFi.h>
 #include <Roomba.h>
+#include <SoftwareSerial.h>
+
+SoftwareSerial mySerial(2, 3); // RX (TX on iRobot, Pin 2; TX on iRobot Pin 1)
 
 // Set up iRobot Create:
 
 // Defines the Roomba instance and the HardwareSerial it connected to
-Roomba roomba(&Serial1);
+Roomba roomba(&mySerial);
 
 int x;                   // 16 bit signed variable
 unsigned int u;          // 16 bit unsigned variable
 
-const int iRobotPowerControlTogglePin = 8;
-const int iRobotIsChargingPin = 9;
+const int iRobotPowerControlTogglePin = 8; // Pin 3 on the iRobot Create
+const int iRobotIsChargingPin = 9; // Pin 13 on the iRobot Create
 
 // TODO: Set up "time since last charge" variable (so can return to base station in time for a recharge)
 // TODO: Set up "time since last powered"
@@ -40,12 +44,13 @@ const int iRobotIsChargingPin = 9;
 
 // Setup Wi-Fi:
 
-char ssid[] = "Hackerspace";      // your network SSID (name) 
-char pass[] = "MakingIsFun!";   // your network password
+char ssid[] = "Pixel";      // your network SSID (name) 
+char pass[] = "redgreenblue";   // your network password
 int keyIndex = 0;                 // your network key Index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;
 
+//IPAddress ip(192, 168, 69, 23);
 WiFiServer server(80);
 
 void setup() {
@@ -53,72 +58,97 @@ void setup() {
   /** Setup serial */
   setupSerial();
   
-  Serial.println("Hey there. I'm waking up. Give me a minute.\n");
+  Serial.println(F("Starting."));
+  
+  /** Setup iRobot Create */
+  setupRoomba();
   
   /** Setup Wi-Fi */
   setupWiFi();
   
-  /** Setup iRobot Create */
-  setupRoomba();
+  /** Setup Arduino to interact the iRobot Create */
+  pinMode(iRobotIsChargingPin, INPUT);
 }
 
-boolean setupSerial() {
+void setupSerial() {
   // Initialize serial and wait for port to open:
   Serial.begin(115200); 
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for Leonardo only
-  }
-  
-  // Return success (true) or failure (false)
-  return true;
+//  while (!Serial) {
+//    ; // wait for serial port to connect. Needed for Leonardo only
+//  }
 }
 
 boolean setupWiFi() {
+  Serial.println(F("Connecting."));
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD) {
-    Serial.println("WiFi shield not present"); 
+    Serial.println(F("WiFi shield not present"));
     // don't continue:
     while(true);
-  } 
+  }
+//  WiFi.config(ip); 
   
   // attempt to connect to Wifi network:
   while ( status != WL_CONNECTED) { 
-    Serial.print("I'm attempting to connect to a Wi-Fi network with SSID \"");
-    Serial.print(ssid);
-    Serial.print("\".\n");
+//    Serial.print("I'm attempting to connect to a Wi-Fi network with SSID \"");
+//    Serial.print(ssid);
+//    Serial.print("\".\n");
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:    
     status = WiFi.begin(ssid, pass);
 
     // wait 10 seconds for connection:
-    delay(10000);
+    delay(5000);
   } 
   server.begin();
   // you're connected now, so print out the status:
   printWifiStatus();
-  
-  // Return success (true) or failure (false)
-  return true;
 }
 
-boolean setupRoomba() {
+void setupRoomba() {
   roomba.start();
 //  roomba.safeMode();
   roomba.fullMode(); //  ModeOff = 0, ModePassive = 1, ModeSafe = 2, ModeFull = 3 }
+  roomba.drive(100, 100); // Stop
+  delay(200);
   roomba.drive(0, 0); // Stop
+//  
+//  // Momentarily writes high to the iRobot's "Power Control Toggle" pin. This 
+//  // pin "Turns iRobot Create on or off on a low-to-high transition".
+//  digitalWrite(iRobotPowerControlTogglePin, LOW);
+//  digitalWrite(iRobotPowerControlTogglePin, HIGH);
+//  delay(50); // TODO: Determine if this needed!
+//  digitalWrite(iRobotPowerControlTogglePin, LOW);
+//  
+//  roomba.start();
+//  
+//  roomba.drivers(ROOMBA_MASK_DRIVER_0);
+//  roomba.drivers(ROOMBA_MASK_DRIVER_1);
+//  roomba.drivers(ROOMBA_MASK_DRIVER_2);
   
   // Return success (true) or failure (false)
-  return true;
 }
 
 boolean hasRoombaSensorData = false;
 uint8_t buf[52];                                        // iRobot sensor data buffer. Packet 6 returns 52 bytes.
-char httpRequestUriBuffer[512]; // HTTP request buffer
+char httpRequestUriBuffer[50]; // HTTP request buffer
 int bi = 0; // HTTP request buffer index
-char* httpRequestParameters[10]; // HTTP request parameters (i.e., key/value pairs encoded in the URI like "?key1=value1&key2=value2")
+char* httpRequestParameters[4]; // HTTP request parameters (i.e., key/value pairs encoded in the URI like "?key1=value1&key2=value2")
 int httpRequestParameterCount = 0;
-char* httpRequestParameterDictionary[10][2]; // HTTP request parameters (i.e., key/value pairs encoded in the URI like "?key1=value1&key2=value2")
+//char* httpRequestParameterDictionary[10][2]; // HTTP request parameters (i.e., key/value pairs encoded in the URI like "?key1=value1&key2=value2")
 // httpRequestParameterDictionary[paramIndex][key] // key = 0 (returns char*)
 // httpRequestParameterDictionary[paramIndex][value] // value = 1 (returns char*)
+
+// TODO: void writeResponseHeader(WiFiClient& client, int statusCode) {
+void writeResponseHeader(WiFiClient& client) {
+  
+  // Send a standard http response header
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/html");
+  client.println("Connection: close");  // the connection will be closed after completion of the response
+  // client.println("Refresh: 5");  // refresh the page automatically every 5 sec // TODO: Make this optional with a parameter (and the time in seconds as a parameter if enabled)
+  client.println();
+  
+}
 
 void loop() {
   
@@ -127,6 +157,8 @@ void loop() {
                                                           // Note that getSensors() -returns true when [length] bytes have been read 
                                                           //                        -is blocking until [length] bytes have been read or timeout occurs
                                                           // Consult Open Interface Manual pg 17 for packet lengths
+                                                          
+//  Serial.println(hasRoombaSensorData);
 
   /**
    * Web server: Process HTTP requests
@@ -189,11 +221,12 @@ void loop() {
               delay(500);
             
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               
               // TODO:
               
@@ -204,11 +237,29 @@ void loop() {
               roomba.dock(); // "Causes roomba to immediately seek the docking station. No equivalent for Create."
               
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
+              
+              break;
+              
+            } else if (strcmp (httpRequestAddress, "/drivers") == 0) {
+              
+              roomba.drivers(ROOMBA_MASK_DRIVER_2); // "Causes roomba to immediately seek the docking station. No equivalent for Create."
+//              #define ROOMBA_MASK_DRIVER_0 0x1
+//              #define ROOMBA_MASK_DRIVER_1 0x2
+//              #define ROOMBA_MASK_DRIVER_2 0x4
+              
+              // send a standard http response header
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               
               break;
               
@@ -222,11 +273,12 @@ void loop() {
               digitalWrite(iRobotPowerControlTogglePin, LOW);
               
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               break;
               
             } else if (strcmp (httpRequestAddress, "/utility/isCharging") == 0) {
@@ -236,11 +288,12 @@ void loop() {
               int robotChargingPinState = digitalRead(iRobotIsChargingPin);
               
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: application/json");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: application/json");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               // Return state in JSON format
               client.print("{ \"robotChargingPinState\": ");
               client.print(robotChargingPinState);
@@ -252,88 +305,136 @@ void loop() {
               roomba.reset(); // "Resets the Roomba. It will emit its startup message Caution, this may take several seconds to complete."
               
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               break;
               
             } else if (strcmp (httpRequestAddress, "/start") == 0) {
               
               roomba.start(); // "Starts the Open Interface and sets the mode to Passive. You must send this before sending any other commands. Initialises the serial port to the baud rate given in the constructor."
+              roomba.fullMode(); //  ModeOff = 0, ModePassive = 1, ModeSafe = 2, ModeFull = 3 }
               
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               break;
               
-            } else if (strcmp (httpRequestAddress, "/drive") == 0) {
-              
-              // TODO: Parse parameters from ?velocity=300&radius=DriveStraight&duration=500&canInterrupt=true
-              
-              roomba.drive(300, roomba.DriveStraight); // DriveStraight is a special case. See Public Types in Roomba Class Reference
-              // "radius" enum values defined in Roomba library:
-              // roomba.DriveStraight                = 0x8000
-              // roomba.DriveInPlaceClockwise        = 0xFFFF
-              // roomba.DriveInPlaceCounterClockwise = 0x0001
-              delay(500);
-              roomba.drive(0, 0);
-              
-              // roomba.drive(velocity, radius); // DriveStraight is a special case. See Public Types in Roomba Class Reference
-              // delay(duration);
-              
-              // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
-              
-              break;
-              
-            } else if (strcmp (httpRequestAddress, "/directDrive") == 0) {
+            } 
+//            else if (strcmp (httpRequestAddress, "/drive") == 0) {
+//              
+//              // TODO: Parse parameters from ?velocity=300&radius=DriveStraight&duration=500&canInterrupt=true
+//              
+//              roomba.drive(300, roomba.DriveStraight); // DriveStraight is a special case. See Public Types in Roomba Class Reference
+//              // "radius" enum values defined in Roomba library:
+//              // roomba.DriveStraight                = 0x8000
+//              // roomba.DriveInPlaceClockwise        = 0xFFFF
+//              // roomba.DriveInPlaceCounterClockwise = 0x0001
+//              delay(500);
+//              roomba.drive(0, 0);
+//              
+//              // roomba.drive(velocity, radius); // DriveStraight is a special case. See Public Types in Roomba Class Reference
+//              // delay(duration);
+//              
+//              // send a standard http response header
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
+//              
+//              break;
+//              
+//            }
+            else if (strcmp (httpRequestAddress, "/forward") == 0) {
+            // else if (strcmp (httpRequestAddress, "/directDrive") == 0) {
               
               // TODO: Parse parameters from ?leftWheelVelocity=300&righWheelVelocity=-300&duration=1000&canInterrupt=true
               
               roomba.driveDirect(300, 300);   // Left/Right Wheel velocity (mm/s)
-              delay(500); // TODO: Make this "non-blocking" with a timer/operation status data structure
+//              delay(500); // TODO: Make this "non-blocking" with a timer/operation status data structure
+//              roomba.drive(0, 0);
+              
+              //roomba.driveDirect(leftWheelVelocity, righWheelVelocity);   // Left/Right Wheel velocity (mm/s)
+              //delay(duration);
+              
+              // send a standard http response header
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
+              
+              break;
+              
+            } else if (strcmp (httpRequestAddress, "/backward") == 0) {
+              
+              // TODO: Parse parameters from ?leftWheelVelocity=300&righWheelVelocity=-300&duration=1000&canInterrupt=true
+              
+              roomba.drive(-300, -300);
+              
+              //roomba.driveDirect(leftWheelVelocity, righWheelVelocity);   // Left/Right Wheel velocity (mm/s)
+              //delay(duration);
+              
+              // send a standard http response header
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
+              
+              break;
+              
+            } else if (strcmp (httpRequestAddress, "/stop") == 0) {
+              
+              // TODO: Parse parameters from ?leftWheelVelocity=300&righWheelVelocity=-300&duration=1000&canInterrupt=true
+              
               roomba.drive(0, 0);
               
               //roomba.driveDirect(leftWheelVelocity, righWheelVelocity);   // Left/Right Wheel velocity (mm/s)
               //delay(duration);
               
               // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
+              writeResponseHeader(client);
+//              client.println("HTTP/1.1 200 OK");
+//              client.println("Content-Type: text/html");
+//              client.println("Connection: close");  // the connection will be closed after completion of the response
+//              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+//              client.println();
               
               break;
               
-            } else if (strcmp (httpRequestAddress, "/playSong") == 0) {
-              
-              Serial.println("Action: playSong");
-              
-              // TODO: Parse parameters from ?songNumber=0&canInterrupt=true
-              
-              int songNumber = 0;
-              roomba.playSong(songNumber);
-              
-              // send a standard http response header
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-Type: text/html");
-              client.println("Connection: close");  // the connection will be closed after completion of the response
-              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-              client.println();
-              
-              break;
-              
-            } else {
+            }
+//            else if (strcmp (httpRequestAddress, "/playSong") == 0) {
+//              
+//              Serial.println("Action: playSong");
+//              
+//              // TODO: Parse parameters from ?songNumber=0&canInterrupt=true
+//              
+//              int songNumber = 0;
+//              roomba.playSong(songNumber);
+//              
+//              // send a standard http response header
+//              writeResponseHeader(client);
+////              client.println("HTTP/1.1 200 OK");
+////              client.println("Content-Type: text/html");
+////              client.println("Connection: close");  // the connection will be closed after completion of the response
+////              // client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+////              client.println();
+//              
+//              break;
+//              
+//            }
+            else {
               
               // TODO: Default, catch-all GET handler
               
@@ -392,9 +493,9 @@ void loop() {
           if (httpRequestLineCount == 1) {
             httpRequestUriBuffer[bi] = NULL; // Terminate string
             
-            Serial.print("REQUEST: ");
-            Serial.println(httpRequestUriBuffer);
-            Serial.println();
+//            Serial.print("REQUEST: ");
+//            Serial.println(httpRequestUriBuffer);
+//            Serial.println();
             
             /**
              * Parse HTTP request header
@@ -684,7 +785,7 @@ boolean handleDefaultHttpRequest(WiFiClient& client) {
   client.println("<!DOCTYPE HTML>");
   client.println("<html>");
   
-  client.println("<h1>iRobot Create Web Server</h1>");
+//  client.println("<h1>iRobot Create Web Server</h1>");
   
   // Output the value of each analog input pin
   // TODO: Ensure that this is compatible with the most common Arduinos, especially the Arduino Uno.
@@ -706,209 +807,184 @@ boolean handleDefaultHttpRequest(WiFiClient& client) {
     client.println("<h2>iRobot Create Status</h2>");
     client.println("<h3>Packet 6 (Full) Sensor Data</h3>");
       
-    client.print("<h4>Bumps and Wheel Drops: ");
-    client.println(buf[0], BIN);
-    client.print("</h4>");
-    client.print("Wheeldrop Caster: ");
-    client.println(bitRead(buf[0], 4));
-    client.print("<br />");
-    client.print("Wheeldrop Left: ");
-    client.println(bitRead(buf[0], 3));   
-    client.print("<br />");
-    client.print("Wheeldrop Right: ");
-    client.println(bitRead(buf[0], 2));  
-    client.print("<br />");   
-    client.print("Bump Left: ");
-    client.println(bitRead(buf[0], 1));
-    client.print("<br />");
-    client.print("Bump Right: ");
-    client.println(bitRead(buf[0], 0));
-    client.print("<br />");
-     
-    client.print("<h4>Wall Sensor:");
-    client.println(buf[1], BIN);
-    client.print("</h4>");
+//    client.print("<h4>Bumps and Wheel Drops: ");
+//    client.println(buf[0], BIN);
+//    client.print("</h4>");
+//    client.print("Wheeldrop Caster: ");
+//    client.println(bitRead(buf[0], 4));
+//    client.print("<br />");
+//    client.print("Wheeldrop Left: ");
+//    client.println(bitRead(buf[0], 3));   
+//    client.print("<br />");
+//    client.print("Wheeldrop Right: ");
+//    client.println(bitRead(buf[0], 2));  
+//    client.print("<br />");   
+//    client.print("Bump Left: ");
+//    client.println(bitRead(buf[0], 1));
+//    client.print("<br />");
+//    client.print("Bump Right: ");
+//    client.println(bitRead(buf[0], 0));
+//    client.print("<br />");
+//     
+//    client.print("<h4>Wall Sensor:");
+//    client.println(buf[1], BIN);
+//    client.print("</h4>");
+//
+//    client.print("Cliff Left: ");
+//    client.println(buf[2], BIN);  
+//    client.print("<br />");
+//    client.print("Cliff Front Left: ");  
+//    client.println(buf[3], BIN);   
+//    client.print("<br />");
+//    client.print("Cliff Front Right: ");  
+//    client.println(buf[4], BIN);  
+//    client.print("<br />");
+//    client.print("Cliff Right: ");    
+//    client.println(buf[5], BIN);
+//    client.print("<br />");
 
-    client.print("Cliff Left: ");
-    client.println(buf[2], BIN);  
-    client.print("<br />");
-    client.print("Cliff Front Left: ");  
-    client.println(buf[3], BIN);   
-    client.print("<br />");
-    client.print("Cliff Front Right: ");  
-    client.println(buf[4], BIN);  
-    client.print("<br />");
-    client.print("Cliff Right: ");    
-    client.println(buf[5], BIN);
-    client.print("<br />");
-
-    client.print("<h4>Virtual Wall: ");
-    client.println(buf[6], BIN);
-    client.print("</h4>");
-
-    client.print("<h4>Low Side Drivers and Wheel Overcurrents: ");
-    client.println(buf[7], BIN);
-    client.print("</h4>");
-
-    // Note the 2 unused bytes pg 18 of Open Interface Manual
-    client.print("<h4>Infrared Byte: ");
-    client.println(buf[10], BIN);
-    client.print("</h4>");
-
-    client.print("<h4>Buttons: ");
-    client.println(buf[11], BIN);
-    client.print("</h4>");
-    client.print("Play Button: ");
-    client.println(bitRead(buf[11], 0));
-    client.print("<br />");
-    client.print("Advance Button: ");
-    client.println(bitRead(buf[11], 2));
-    client.print("<br />");
-    client.print("<br />");
+//    client.print("<h4>Virtual Wall: ");
+//    client.println(buf[6], BIN);
+//    client.print("</h4>");
+//
+//    client.print("<h4>Low Side Drivers and Wheel Overcurrents: ");
+//    client.println(buf[7], BIN);
+//    client.print("</h4>");
+//
+//    // Note the 2 unused bytes pg 18 of Open Interface Manual
+//    client.print("<h4>Infrared Byte: ");
+//    client.println(buf[10], BIN);
+//    client.print("</h4>");
+//
+//    client.print("<h4>Buttons: ");
+//    client.println(buf[11], BIN);
+//    client.print("</h4>");
+//    client.print("Play Button: ");
+//    client.println(bitRead(buf[11], 0));
+//    client.print("<br />");
+//    client.print("Advance Button: ");
+//    client.println(bitRead(buf[11], 2));
+//    client.print("<br /><br />");
      
     client.print("Distance (mm): ");              // Sum of distance traveled by both wheels divided by two
     x = BitShiftCombine(buf[12], buf[13]);        // Value sent as 16 bit signed value high byte first.
-    client.println(x);                            // Note that if note called frequently, value is capped at min or max
-    client.print("<br />");
-    client.print("<br />");
+    client.println(x);
+    client.print("<br /><br />");
 
     client.print("Angle (Degrees- CCW+): ");          
     x = BitShiftCombine(buf[14], buf[15]);        // Value sent as 16 bit signed value high byte first.
     client.println(x);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Charging State: ");
     u = buf[16];
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Battery Voltage (mV): ");
     u = BitShiftCombine(buf[17], buf[18]);      // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Battery Current (mA): ");
     x = BitShiftCombine(buf[19], buf[20]);      // Value sent as 16 bit signed value high byte first.
     client.println(x);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Battery Temperature (C): ");
     x = buf[21];
     client.println(x);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Current Battery Charge (mAh): ");
     u = BitShiftCombine(buf[22], buf[23]);      // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Battery Capacity (mAh): ");
     u = BitShiftCombine(buf[24], buf[25]);      // Value sent as 16 bit signed value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Wall Signal Strength (0-4095): ");
     u = BitShiftCombine(buf[26], buf[27]);      // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Cliff Left Signal Strength (0-4095): ");
     u = BitShiftCombine(buf[28], buf[29]);      // Value sent as 16 bit unsigned value high byte first.
-    client.println(u); 
-    client.print("<br />");
-    client.print("<br />");
+    client.println(u);
+    client.print("<br /><br />");
 
     client.print("Cliff Front Left Signal Strength (0-4095): ");
     u = BitShiftCombine(buf[30], buf[31]);      // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Cliff Front Right Signal Strength (0-4095): ");
     u = BitShiftCombine(buf[32], buf[33]);      // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Cliff Right Signal Strength (0-4095): ");
     u = BitShiftCombine(buf[34], buf[35]);      // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Cargo Bay Digital Inputs: ");
     client.println(buf[36], BIN);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Cargo Bay Analog Signal (0-1023):");
     u = BitShiftCombine(buf[37], buf[38]);       // Value sent as 16 bit unsigned value high byte first.
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Charging Sources Available:");
     client.println(buf[39], BIN);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("OI Mode: ");
     u = buf[40];
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Song Number: ");
     x = buf[41];
     client.println(x);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Song Playing: ");
     client.println(buf[42], BIN);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Number of Stream Packets: ");
     u = buf[43];
     client.println(u);
-    client.print("<br />");
-    client.print("<br />");
+    client.print("<br /><br />");
 
     client.print("Requested Velocity (mm/s): ");
     x = BitShiftCombine(buf[44], buf[45]);      // Value sent as 16 bit signed value high byte first.
-    client.println(x);  
-    client.print("<br />");   
-    client.print("<br />");     
+    client.println(x);
+    client.print("<br /><br />");
 
 
     client.print("Requested Radius (mm):");
     x = BitShiftCombine(buf[46], buf[47]);      // Value sent as 16 bit signed value high byte first.
-    client.println(x);     
-    client.print("<br />");  
-    client.print("<br />");   
+    client.println(x);
+    client.print("<br /><br />");   
 
 
     client.print("Requested Right Velocity (mm/s): ");
     x = BitShiftCombine(buf[48], buf[49]);      // Value sent as 16 bit signed value high byte first.
-    client.println(x);       
-    client.print("<br />");  
-    client.print("<br />"); 
+    client.println(x);
+    client.print("<br /><br />");
 
 
     client.print("Requested Left Velocity (mm/s): ");
     x = BitShiftCombine(buf[50], buf[51]);      // Value sent as 16 bit signed value high byte first.
-    client.println(x);       
-    client.print("<br />");  
-    client.print("<br />"); 
+    client.println(x);
+    client.print("<br /><br />");
   }
 
   client.println("</html>");
@@ -918,22 +994,22 @@ boolean handleDefaultHttpRequest(WiFiClient& client) {
 
 void printWifiStatus() {
   
-  Serial.println("Success! I connected to the following Wi-Fi network:");
-  
-  // print the SSID of the network you're attached to:
-  Serial.print("\tSSID: ");
-  Serial.println(WiFi.SSID());
+//  Serial.println("Success! I connected to the following Wi-Fi network:");
+//  
+//  // print the SSID of the network you're attached to:
+//  Serial.print("\tSSID: ");
+//  Serial.println(WiFi.SSID());
 
   // print your WiFi shield's IP address:
   IPAddress ip = WiFi.localIP();
   Serial.print("\tIP Address: ");
   Serial.println(ip);
-
-  // print the received signal strength:
-  long rssi = WiFi.RSSI();
-  Serial.print("\tSignal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
+//
+//  // print the received signal strength:
+//  long rssi = WiFi.RSSI();
+//  Serial.print("\tSignal strength (RSSI):");
+//  Serial.print(rssi);
+//  Serial.println(" dBm");
   
   Serial.println();
 }
